@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "functionCode": "// Prepare email content for outreach\nconst lead = items[0].json;\n\n// Create personalized email subject\nconst subjects = [\n  `Quick question about your ${lead.niche} work, ${lead.name}`,\n  `Loved your ${lead.niche} content, ${lead.name}`,\n  `Partnership opportunity for ${lead.name}`,\n  `${lead.name}, interested in growing your ${lead.niche} reach?`\n];\n\nconst randomSubject = subjects[Math.floor(Math.random() * subjects.length)];\n\n// Create email body with personalized message\nconst emailBody = `Hi ${lead.name},\n\n${lead.message}\n\nI've been following your ${lead.niche} content and I'm impressed with your engagement. We're working with influencers in your space to help them monetize their audience through our affiliate program.\n\nWould you be interested in a quick 15-minute call to discuss how we could work together?\n\nBest regards,\nThe Affiliate Team\n\nP.S. I noticed you're in ${lead.source} - we've had great success with creators on that platform.\n\n---\nTo unsubscribe, reply with \"UNSUBSCRIBE\"\nThis email was sent because you match our creator criteria based on your public profile.`;\n\nreturn [{\n  json: {\n    ...lead,\n    email_subject: randomSubject,\n    email_body: emailBody,\n    outreach_timestamp: new Date().toISOString()\n  }\n}];"
+        "functionCode": "// Prepare email content for outreach - handle all leads\nreturn items.map(item => {\n  const lead = item.json;\n\n  // Create personalized email subject\n  const subjects = [\n    `Quick question about your ${lead.niche} work, ${lead.name}`,\n    `Loved your ${lead.niche} content, ${lead.name}`,\n    `Partnership opportunity for ${lead.name}`,\n    `${lead.name}, interested in growing your ${lead.niche} reach?`\n  ];\n\n  const randomSubject = subjects[Math.floor(Math.random() * subjects.length)];\n\n  // Create email body with personalized message\n  const emailBody = `Hi ${lead.name},\n\n${lead.message}\n\nI've been following your ${lead.niche} content and I'm impressed with your engagement. We're working with influencers in your space to help them monetize their audience through our affiliate program.\n\nWould you be interested in a quick 15-minute call to discuss how we could work together?\n\nBest regards,\nThe Affiliate Team\n\nP.S. I noticed you're in ${lead.source} - we've had great success with creators on that platform.\n\n---\nTo unsubscribe, reply with \"UNSUBSCRIBE\"\nThis email was sent because you match our creator criteria based on your public profile.`;\n\n  return {\n    json: {\n      ...lead,\n      email_subject: randomSubject,\n      email_body: emailBody,\n      outreach_timestamp: new Date().toISOString()\n    }\n  };\n});"
       },
       "id": "4d5e6f7g-8h9i-0j1k-2l3m-n4o5p6q7r8s9",
       "name": "Prepare Email Content",
@@ -83,7 +83,9 @@
         "table": "enriched_leads",
         "updateKey": "id",
         "columns": "sent, contacted",
-        "additionalFields": {}
+        "additionalFields": {
+          "mode": "independently"
+        }
       },
       "id": "6f7g8h9i-0j1k-2l3m-4n5o-p6q7r8s9t0u1",
       "name": "Mark as Sent",
@@ -109,13 +111,23 @@
     },
     {
       "parameters": {
-        "functionCode": "// Simulate email sending for demo purposes\n// In a real environment, you would use the actual email node\n\nconst lead = items[0].json;\n\nconsole.log(`DEMO: Would send email to ${lead.name} (${lead.email})`);\nconsole.log(`Subject: ${lead.email_subject}`);\nconsole.log(`Preview: ${lead.email_body.substring(0, 100)}...`);\n\n// Simulate successful email sending\nreturn [{\n  json: {\n    ...lead,\n    sent: true,\n    contacted: true,\n    demo_mode: true\n  }\n}];"
+        "functionCode": "// Simulate email sending for demo purposes - handle all leads\n// In a real environment, you would use the actual email node\n\nreturn items.map(item => {\n  const lead = item.json;\n\n  console.log(`DEMO: Would send email to ${lead.name} (${lead.email})`);\n  console.log(`Subject: ${lead.email_subject}`);\n  console.log(`Preview: ${lead.email_body.substring(0, 100)}...`);\n\n  // Simulate successful email sending\n  return {\n    json: {\n      ...lead,\n      sent: true,\n      contacted: true,\n      demo_mode: true\n    }\n  };\n});"
       },
       "id": "8h9i0j1k-2l3m-4n5o-6p7q-r8s9t0u1v2w3",
       "name": "Demo Email Send",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
       "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare data for database update\nreturn items.map(item => {\n  const lead = item.json;\n  \n  // Ensure we have the correct field names and data types for the update\n  return {\n    json: {\n      id: lead.enriched_id,  // Use enriched_id as the update key\n      sent: true,\n      contacted: true\n    }\n  };\n});"
+      },
+      "id": "9a1b2c3d-4e5f-6g7h-8i9j-k0l1m2n3o4p5",
+      "name": "Prepare Update Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1200, 400]
     }
   ],
   "connections": {
@@ -172,7 +184,7 @@
       "main": [
         [
           {
-            "node": "Mark as Sent",
+            "node": "Prepare Update Data",
             "type": "main",
             "index": 0
           }
@@ -180,6 +192,17 @@
       ]
     },
     "Demo Email Send": {
+      "main": [
+        [
+          {
+            "node": "Prepare Update Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Update Data": {
       "main": [
         [
           {

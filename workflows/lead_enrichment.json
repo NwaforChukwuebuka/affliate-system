@@ -1,5 +1,5 @@
 {
-  "name": "My workflow 21",
+  "name": "lead_enrichment",
   "nodes": [
     {
       "parameters": {},
@@ -77,8 +77,19 @@
       "parameters": {
         "method": "POST",
         "url": "https://openrouter.ai/api/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{\"Bearer \" + $env.OPENROUTER_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "raw",
         "body": "={{ JSON.stringify({\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": $json.mistral_prompt\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 500\n}) }}",
@@ -91,13 +102,7 @@
       "position": [
         1000,
         0
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "98tlegT86HM6rSEZ",
-          "name": "OpenRouter API"
-        }
-      }
+      ]
     },
     {
       "parameters": {
