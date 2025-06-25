@@ -1,0 +1,276 @@
+{
+  "name": "Lead Generation - PhantomBuster Twitter",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-node-phantom",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Configuration for PhantomBuster Twitter Search\n// Using simple keywords that reliably return results\nconst searchConfig = {\n  phantomId: \"4993340831371862\",\n  input: {\n    // Simple, effective search terms\n    searches: [\n      \"marketing\"],\n    numberOfProfilesPerSearch: 1, // Increase now that we know it works\n    csvName: \"twitter-leads-\" + new Date().toISOString().split('T')[0],\n    sessionCookie: \"\"\n  }\n};\n\nconsole.log('Launching phantom with proven keywords:', searchConfig);\nreturn [{ json: searchConfig }];"
+      },
+      "id": "config-phantom-search",
+      "name": "Configure Phantom Search",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\n  \"id\": \"4993340831371862\"\n}",
+        "headerParametersJson": "{\n  \"Content-Type\": \"application/json\",\n  \"X-Phantombuster-Key\": \"WAhnB6Cb7vS0mYFm8qJPe58jNnvR2Xu1ZMX6YxheFdo\"\n}"
+      },
+      "id": "phantombuster-launch-node",
+      "name": "Launch PhantomBuster",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "unit": "minutes",
+        "amount": 5
+      },
+      "id": "wait-for-phantom",
+      "name": "Wait for Phantom Completion",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.phantombuster.com/api/v2/agents/output?id={{$node['Launch PhantomBuster'].json.containerId}}",
+        "requestMethod": "GET",
+        "jsonParameters": true,
+        "headerParametersJson": "{\n  \"X-Phantombuster-Key\": \"WAhnB6Cb7vS0mYFm8qJPe58jNnvR2Xu1ZMX6YxheFdo\"\n}"
+      },
+      "id": "fetch-phantom-results",
+      "name": "Fetch Phantom Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process PhantomBuster results and normalize for our database\nconst phantomData = $json.data || [];\n\nif (!Array.isArray(phantomData)) {\n  console.log('No data received from PhantomBuster or invalid format');\n  return [];\n}\n\nconst processedLeads = phantomData.map(profile => {\n  // Extract email from bio or use a pattern-based approach\n  const emailMatch = profile.bio ? profile.bio.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/) : null;\n  const extractedEmail = emailMatch ? emailMatch[0] : null;\n  \n  // Generate potential email if not found in bio\n  const potentialEmail = extractedEmail || (\n    profile.username ? \n    `${profile.username.replace(/[^a-zA-Z0-9]/g, '')}@gmail.com` : \n    null\n  );\n\n  return {\n    source: 'twitter',\n    name: profile.name || profile.displayName || profile.username,\n    username: profile.username || profile.handle,\n    email: potentialEmail,\n    profile_url: profile.url || `https://twitter.com/${profile.username}`,\n    follower_count: parseInt(profile.followersCount) || 0,\n    bio: profile.bio || profile.description || '',\n    verified: profile.verified || false,\n    location: profile.location || '',\n    // Additional fields for analysis\n    following_count: parseInt(profile.followingCount) || 0,\n    tweet_count: parseInt(profile.tweetCount) || 0,\n    profile_image: profile.profileImageUrl || '',\n    join_date: profile.joinDate || null\n  };\n});\n\n// Filter out profiles without basic information\nconst validLeads = processedLeads.filter(lead => \n  lead.username && \n  lead.bio && \n  lead.follower_count > 500 // Minimum follower threshold\n);\n\nconsole.log(`Processed ${phantomData.length} profiles, ${validLeads.length} valid leads`);\n\nreturn validLeads.map(lead => ({ json: lead }));"
+      },
+      "id": "process-phantom-data",
+      "name": "Process Phantom Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check for duplicates before inserting\nconst currentLead = $json;\n\n// Create a query to check if this username already exists\nreturn [{\n  json: {\n    ...currentLead,\n    checkQuery: `SELECT COUNT(*) as count FROM leads WHERE username = '${currentLead.username}' AND source = 'twitter'`\n  }\n}];"
+      },
+      "id": "prepare-duplicate-check",
+      "name": "Prepare Duplicate Check",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{$json.checkQuery}}"
+      },
+      "id": "check-duplicates",
+      "name": "Check for Duplicates",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1780, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_affiliate",
+          "name": "PostgreSQL Affiliate DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.count}}",
+              "operation": "equal",
+              "value2": "0"
+            }
+          ]
+        }
+      },
+      "id": "filter-new-leads",
+      "name": "Filter New Leads Only",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "leads",
+        "columns": "source, name, username, email, profile_url, follower_count, bio, verified, location",
+        "additionalFields": {
+          "mode": "independently"
+        }
+      },
+      "id": "insert-new-leads",
+      "name": "Insert New Leads to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [2220, 220],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_affiliate",
+          "name": "PostgreSQL Affiliate DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final results summary\nconst successfulInserts = $items('Insert New Leads to DB') || [];\nconst skippedDuplicates = $items('Filter New Leads Only', 1) || [];\nconst totalProcessed = $items('Process Phantom Data') || [];\n\nconst summary = {\n  message: 'PhantomBuster lead generation completed',\n  total_profiles_found: totalProcessed.length,\n  new_leads_inserted: successfulInserts.length,\n  duplicates_skipped: skippedDuplicates.length,\n  timestamp: new Date().toISOString(),\n  next_steps: [\n    'Run lead enrichment workflow',\n    'Review leads for quality',\n    'Start outreach campaigns'\n  ]\n};\n\nconsole.log('PhantomBuster Lead Generation Summary:', summary);\n\nreturn [{ json: summary }];"
+      },
+      "id": "log-final-results",
+      "name": "Log Final Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2440, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Configure Phantom Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configure Phantom Search": {
+      "main": [
+        [
+          {
+            "node": "Launch PhantomBuster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch PhantomBuster": {
+      "main": [
+        [
+          {
+            "node": "Wait for Phantom Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Phantom Completion": {
+      "main": [
+        [
+          {
+            "node": "Fetch Phantom Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Phantom Results": {
+      "main": [
+        [
+          {
+            "node": "Process Phantom Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Phantom Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Duplicate Check": {
+      "main": [
+        [
+          {
+            "node": "Check for Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Filter New Leads Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Leads Only": {
+      "main": [
+        [
+          {
+            "node": "Insert New Leads to DB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Final Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Final Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert New Leads to DB": {
+      "main": [
+        [
+          {
+            "node": "Log Final Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1.0.0",
+  "id": "lead_generation_phantombuster"
+}

@@ -1,0 +1,93 @@
+{
+  "name": "Lead Generation - Twitter",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "7f4f3e6a-8b2c-4d5e-9f1a-3c2b1a0d9e8f",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simulate Twitter lead generation\nconst fakeLeads = [\n  {\n    source: 'twitter',\n    name: 'Alice Johnson',\n    username: 'alicejohnson_biz',\n    email: 'alice.johnson@business.com',\n    profile_url: 'https://twitter.com/alicejohnson_biz',\n    follower_count: 12500,\n    bio: 'Business consultant | Helping startups scale | MBA',\n    verified: false,\n    location: 'New York, NY'\n  },\n  {\n    source: 'twitter',\n    name: 'Bob Smith',\n    username: 'bobsmith_tech',\n    email: 'bob.smith@tech.com',\n    profile_url: 'https://twitter.com/bobsmith_tech',\n    follower_count: 8900,\n    bio: 'Software engineer | Python enthusiast | Open source contributor',\n    verified: false,\n    location: 'San Francisco, CA'\n  },\n  {\n    source: 'twitter',\n    name: 'Carol Davis',\n    username: 'caroldavis_marketing',\n    email: 'carol.davis@marketing.com',\n    profile_url: 'https://twitter.com/caroldavis_marketing',\n    follower_count: 19200,\n    bio: 'Digital marketing expert | Content strategist | Growth hacker',\n    verified: true,\n    location: 'Austin, TX'\n  },\n  {\n    source: 'twitter',\n    name: 'Daniel Lee',\n    username: 'daniel_finance',\n    email: 'daniel.lee@finance.com',\n    profile_url: 'https://twitter.com/daniel_finance',\n    follower_count: 31400,\n    bio: 'Financial advisor | Investment strategist | Wealth management',\n    verified: true,\n    location: 'Chicago, IL'\n  },\n  {\n    source: 'twitter',\n    name: 'Eve Wilson',\n    username: 'evewilson_health',\n    email: 'eve.wilson@health.com',\n    profile_url: 'https://twitter.com/evewilson_health',\n    follower_count: 7800,\n    bio: 'Wellness coach | Nutrition specialist | Helping people live better',\n    verified: false,\n    location: 'Los Angeles, CA'\n  }\n];\n\n// Return leads as separate items for processing\nreturn fakeLeads.map(lead => ({ json: lead }));"
+      },
+      "id": "a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+      "name": "Generate Fake Leads",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "leads",
+        "columns": "source, name, username, email, profile_url, follower_count, bio, verified, location",
+        "additionalFields": {
+          "mode": "independently"
+        }
+      },
+      "id": "b2c3d4e5-6f7g-8h9i-0j1k-l2m3n4o5p6q7",
+      "name": "Insert Leads to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_affiliate",
+          "name": "PostgreSQL Affiliate DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log the results\nconst leadCount = items.length;\nconsole.log(`Successfully inserted ${leadCount} leads into the database`);\n\nreturn [{\n  json: {\n    message: `Lead generation completed successfully`,\n    leads_inserted: leadCount,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "c3d4e5f6-7g8h-9i0j-1k2l-m3n4o5p6q7r8",
+      "name": "Log Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Generate Fake Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Fake Leads": {
+      "main": [
+        [
+          {
+            "node": "Insert Leads to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Leads to DB": {
+      "main": [
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1.0.0",
+  "id": "lead_generation_twitter"
+} 

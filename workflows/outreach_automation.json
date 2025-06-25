@@ -1,0 +1,209 @@
+{
+  "name": "Outreach Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 9 * * MON-FRI"
+            }
+          ]
+        }
+      },
+      "id": "1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+      "name": "Daily Outreach Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  el.id as enriched_id,\n  el.lead_id,\n  el.niche,\n  el.score,\n  el.notes,\n  el.message,\n  el.compliant,\n  l.name,\n  l.username,\n  l.email,\n  l.profile_url,\n  l.source\nFROM enriched_leads el\nJOIN leads l ON el.lead_id = l.id\nWHERE el.sent = FALSE \n  AND el.compliant = TRUE \n  AND el.score >= 70\n  AND l.email IS NOT NULL\nORDER BY el.score DESC\nLIMIT 5;"
+      },
+      "id": "2b3c4d5e-6f7g-8h9i-0j1k-l2m3n4o5p6q7",
+      "name": "Get Leads for Outreach",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_affiliate",
+          "name": "PostgreSQL Affiliate DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check if we have leads ready for outreach\nif (!items || items.length === 0) {\n  console.log('No leads ready for outreach');\n  return [];\n}\n\nconsole.log(`Found ${items.length} leads ready for outreach`);\nreturn items;"
+      },
+      "id": "3c4d5e6f-7g8h-9i0j-1k2l-m3n4o5p6q7r8",
+      "name": "Check for Outreach Leads",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare email content for outreach\nconst lead = items[0].json;\n\n// Create personalized email subject\nconst subjects = [\n  `Quick question about your ${lead.niche} work, ${lead.name}`,\n  `Loved your ${lead.niche} content, ${lead.name}`,\n  `Partnership opportunity for ${lead.name}`,\n  `${lead.name}, interested in growing your ${lead.niche} reach?`\n];\n\nconst randomSubject = subjects[Math.floor(Math.random() * subjects.length)];\n\n// Create email body with personalized message\nconst emailBody = `Hi ${lead.name},\n\n${lead.message}\n\nI've been following your ${lead.niche} content and I'm impressed with your engagement. We're working with influencers in your space to help them monetize their audience through our affiliate program.\n\nWould you be interested in a quick 15-minute call to discuss how we could work together?\n\nBest regards,\nThe Affiliate Team\n\nP.S. I noticed you're in ${lead.source} - we've had great success with creators on that platform.\n\n---\nTo unsubscribe, reply with \"UNSUBSCRIBE\"\nThis email was sent because you match our creator criteria based on your public profile.`;\n\nreturn [{\n  json: {\n    ...lead,\n    email_subject: randomSubject,\n    email_body: emailBody,\n    outreach_timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "4d5e6f7g-8h9i-0j1k-2l3m-n4o5p6q7r8s9",
+      "name": "Prepare Email Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "text",
+        "text": "={{ $json.email_body }}",
+        "options": {}
+      },
+      "id": "5e6f7g8h-9i0j-1k2l-3m4n-o5p6q7r8s9t0",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "credentials": {
+        "smtp": {
+          "id": "smtp_email",
+          "name": "SMTP Email Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "enriched_leads",
+        "updateKey": "id",
+        "columns": "sent, contacted",
+        "additionalFields": {}
+      },
+      "id": "6f7g8h9i-0j1k-2l3m-4n5o-p6q7r8s9t0u1",
+      "name": "Mark as Sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1340, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_affiliate",
+          "name": "PostgreSQL Affiliate DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log outreach completion\nconst outreachCount = items.length;\nconsole.log(`Successfully sent outreach to ${outreachCount} leads`);\n\n// Create summary of outreach activity\nconst leadNames = items.map(item => item.json.name).join(', ');\n\nreturn [{\n  json: {\n    message: 'Outreach automation completed',\n    emails_sent: outreachCount,\n    leads_contacted: leadNames,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "7g8h9i0j-1k2l-3m4n-5o6p-q7r8s9t0u1v2",
+      "name": "Log Outreach Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simulate email sending for demo purposes\n// In a real environment, you would use the actual email node\n\nconst lead = items[0].json;\n\nconsole.log(`DEMO: Would send email to ${lead.name} (${lead.email})`);\nconsole.log(`Subject: ${lead.email_subject}`);\nconsole.log(`Preview: ${lead.email_body.substring(0, 100)}...`);\n\n// Simulate successful email sending\nreturn [{\n  json: {\n    ...lead,\n    sent: true,\n    contacted: true,\n    demo_mode: true\n  }\n}];"
+      },
+      "id": "8h9i0j1k-2l3m-4n5o-6p7q-r8s9t0u1v2w3",
+      "name": "Demo Email Send",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 500]
+    }
+  ],
+  "connections": {
+    "Daily Outreach Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Leads for Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Leads for Outreach": {
+      "main": [
+        [
+          {
+            "node": "Check for Outreach Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Outreach Leads": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Content": {
+      "main": [
+        [
+          {
+            "node": "Demo Email Send",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Mark as Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Email Send": {
+      "main": [
+        [
+          {
+            "node": "Mark as Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Sent": {
+      "main": [
+        [
+          {
+            "node": "Log Outreach Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1.0.0",
+  "id": "outreach_automation"
+} 

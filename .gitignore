@@ -1,0 +1,60 @@
+# Environment and secrets
+.env
+.env.local
+.env.production
+
+# Docker volumes and data
+postgres_data/
+n8n_data/
+
+# Logs
+*.log
+logs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node modules (if any)
+node_modules/
+npm-debug.log*
+
+# Python cache (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Backup files
+*.bak
+*.backup
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# SSL certificates
+*.key
+*.crt
+*.pem
+
+# Development artifacts
+.dist/
+build/
+dist/ 
