@@ -1,0 +1,37 @@
+{
+  "name": "test_env_vars",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Test environment variable access\nconst openrouterKey = $env.OPENROUTER_API_KEY;\nconst phantombusterKey = $env.PHANTOMBUSTER_API_KEY;\n\nconsole.log('Testing environment variables:');\nconsole.log('OPENROUTER_API_KEY exists:', !!openrouterKey);\nconsole.log('OPENROUTER_API_KEY length:', openrouterKey ? openrouterKey.length : 0);\nconsole.log('PHANTOMBUSTER_API_KEY exists:', !!phantombusterKey);\nconsole.log('PHANTOMBUSTER_API_KEY length:', phantombusterKey ? phantombusterKey.length : 0);\n\nreturn [{\n  json: {\n    openrouter_key_exists: !!openrouterKey,\n    openrouter_key_length: openrouterKey ? openrouterKey.length : 0,\n    openrouter_key_preview: openrouterKey ? openrouterKey.substring(0, 10) + '...' : 'NOT FOUND',\n    phantombuster_key_exists: !!phantombusterKey,\n    phantombuster_key_length: phantombusterKey ? phantombusterKey.length : 0,\n    phantombuster_key_preview: phantombusterKey ? phantombusterKey.substring(0, 10) + '...' : 'NOT FOUND',\n    test_timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "test-env-function",
+      "name": "Test Environment Variables",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [220, 0]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{
+        "node": "Test Environment Variables",
+        "type": "main",
+        "index": 0
+      }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+} 

@@ -1,9 +1,9 @@
 {
-  "name": "lead_enrichment",
+  "name": "My workflow 50",
   "nodes": [
     {
       "parameters": {},
-      "id": "9fcc0b54-0322-4352-adfb-b429800fa705",
+      "id": "a41371e2-9036-4d7e-a89e-0fdc02c8a3e6",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
         "query": "SELECT l.id, l.source, l.name, l.username, l.email, l.profile_url, l.follower_count, l.bio, l.verified, l.location\nFROM leads l\nLEFT JOIN enriched_leads el ON l.id = el.lead_id\nWHERE el.lead_id IS NULL\nLIMIT 10;",
         "additionalFields": {}
       },
-      "id": "c6b115a7-90af-44a7-b88f-54a2f2170741",
+      "id": "6a2afb1a-7d55-4ad6-a9ad-9938442c1178",
       "name": "Get Unenriched Leads",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -37,7 +37,7 @@
       "parameters": {
         "functionCode": "// Check if we have leads to process\nif (!items || items.length === 0) {\n  console.log('No unenriched leads found');\n  return [];\n}\n\nconsole.log(`Found ${items.length} leads to enrich`);\nreturn items;"
       },
-      "id": "f1a51c04-a5c9-4bba-b563-b1a0b93b7526",
+      "id": "7210294a-8e5f-49b8-8122-1739ddc5e9f5",
       "name": "Check for Leads",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
@@ -51,7 +51,7 @@
         "batchSize": 1,
         "options": {}
       },
-      "id": "44711c02-afd1-4264-87bf-5c1a3a97db9b",
+      "id": "a2b423fa-9d3c-4ef5-bb3d-e9a2143ce337",
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 1,
@@ -64,7 +64,7 @@
       "parameters": {
         "functionCode": "// Create Mistral prompt for lead enrichment\nconst lead = items[0].json;\n\nconst prompt = `Analyze this social media lead and provide enrichment data:\n\nLead Information:\n- Name: ${lead.name}\n- Username: ${lead.username}\n- Bio: ${lead.bio}\n- Follower Count: ${lead.follower_count}\n- Verified: ${lead.verified}\n- Location: ${lead.location}\n- Source: ${lead.source}\n\nPlease analyze this lead and respond with ONLY a valid JSON object in this exact format:\n{\n  \"niche\": \"primary business niche/industry (e.g., 'technology', 'fitness', 'finance', 'marketing')\",\n  \"score\": engagement_quality_score_0_to_100,\n  \"notes\": \"30-word summary of lead quality and potential\",\n  \"message\": \"personalized outreach message (50-80 words)\",\n  \"compliant\": true_or_false,\n  \"compliance_notes\": \"brief compliance assessment\",\n  \"ai_confidence\": confidence_score_0_to_1\n}\n\nConsider:\n- Follower count and engagement potential\n- Bio relevance to business/professional content\n- Verification status\n- Industry alignment\n- Compliance with outreach regulations\n\nRespond with ONLY the JSON object, no other text.`;\n\nreturn [{\n  json: {\n    lead_id: lead.id,\n    lead_name: lead.name,\n    mistral_prompt: prompt\n  }\n}];"
       },
-      "id": "763563f9-84a6-4adb-a990-d0bc31d0611b",
+      "id": "d06162f2-9aa2-4355-830f-afa153289fce",
       "name": "Prepare Mistral Prompt",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
@@ -77,38 +77,33 @@
       "parameters": {
         "method": "POST",
         "url": "https://openrouter.ai/api/v1/chat/completions",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{\"Bearer \" + $env.OPENROUTER_API_KEY}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "contentType": "raw",
         "body": "={{ JSON.stringify({\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": $json.mistral_prompt\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 500\n}) }}",
         "options": {}
       },
-      "id": "ab9bcc65-b84f-4abe-8e98-3b11991f5878",
+      "id": "78c057ee-0a22-4bf1-be3b-d1559a0d70e3",
       "name": "Mistral API Call",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
         1000,
         0
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "a0hAbcpaSBWsxCQq",
+          "name": "OpenRouter API"
+        }
+      }
     },
     {
       "parameters": {
         "functionCode": "// Parse Mistral response and prepare for database insertion\nconst lead_id = $node['Prepare Mistral Prompt'].json.lead_id;\nconst lead_name = $node['Prepare Mistral Prompt'].json.lead_name;\n\n// Debug: Log the full response structure\nconsole.log('Full Mistral Response:', JSON.stringify($json, null, 2));\n\n// Handle different possible response structures\nlet mistralResponse;\n\n// Check for error responses\nif ($json.error) {\n  console.error('Mistral API error:', $json.error);\n  \n  return [{\n    json: {\n      lead_id: lead_id,\n      niche: 'general',\n      score: 50,\n      notes: 'Mistral API error - check API key and credits',\n      message: `Hi ${lead_name || 'there'}, I noticed your profile and thought you might be interested in our services.`,\n      compliant: false,\n      compliance_notes: 'API error - manual review required',\n      ai_confidence: 0.1,\n      enrichment_version: '1.0'\n    }\n  }];\n}\n\n// Standard OpenRouter API response structure\nif ($json.choices && $json.choices[0] && $json.choices[0].message) {\n  mistralResponse = $json.choices[0].message.content;\n} else if ($json.content) {\n  mistralResponse = $json.content;\n} else if ($json.message) {\n  mistralResponse = $json.message;\n} else {\n  console.error('Unable to find Mistral response content in expected locations');\n  console.error('Available keys in response:', Object.keys($json));\n  mistralResponse = null;\n}\n\nconsole.log('Extracted Mistral Response:', mistralResponse);\n\nif (!mistralResponse) {\n  console.error('No valid Mistral response found');\n  // Return fallback enrichment\n  return [{\n    json: {\n      lead_id: lead_id,\n      niche: 'general',\n      score: 50,\n      notes: 'Mistral response structure error - requires manual review',\n      message: `Hi ${lead_name || 'there'}, I noticed your profile and thought you might be interested in our services.`,\n      compliant: false,\n      compliance_notes: 'Response structure error - manual review required',\n      ai_confidence: 0.1,\n      enrichment_version: '1.0'\n    }\n  }];\n}\n\ntry {\n  // Clean the response to extract JSON\n  let cleanResponse = mistralResponse.trim();\n  \n  // Remove markdown code blocks if present\n  if (cleanResponse.startsWith('```json')) {\n    cleanResponse = cleanResponse.replace(/```json\\s*/, '').replace(/\\s*```$/, '');\n  }\n  if (cleanResponse.startsWith('```')) {\n    cleanResponse = cleanResponse.replace(/```\\s*/, '').replace(/\\s*```$/, '');\n  }\n  \n  // Find JSON object in the response\n  const jsonMatch = cleanResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    cleanResponse = jsonMatch[0];\n  }\n  \n  console.log('Cleaned response for parsing:', cleanResponse);\n  \n  // Parse the JSON response from Mistral\n  const enrichmentData = JSON.parse(cleanResponse);\n  \n  // Validate required fields\n  const requiredFields = ['niche', 'score', 'notes', 'message'];\n  for (const field of requiredFields) {\n    if (!enrichmentData.hasOwnProperty(field)) {\n      throw new Error(`Missing required field: ${field}`);\n    }\n  }\n  \n  // Ensure score is within range\n  enrichmentData.score = Math.max(0, Math.min(100, parseInt(enrichmentData.score)));\n  \n  // Ensure ai_confidence is within range\n  if (enrichmentData.ai_confidence) {\n    enrichmentData.ai_confidence = Math.max(0, Math.min(1, parseFloat(enrichmentData.ai_confidence)));\n  } else {\n    enrichmentData.ai_confidence = 0.8; // Default confidence\n  }\n  \n  return [{\n    json: {\n      lead_id: lead_id,\n      niche: enrichmentData.niche,\n      score: enrichmentData.score,\n      notes: enrichmentData.notes,\n      message: enrichmentData.message,\n      compliant: enrichmentData.compliant !== false, // Default to true if not specified\n      compliance_notes: enrichmentData.compliance_notes || 'Automated assessment',\n      ai_confidence: enrichmentData.ai_confidence,\n      enrichment_version: '1.0'\n    }\n  }];\n  \n} catch (error) {\n  console.error('Error parsing Mistral response:', error);\n  console.error('Raw response that failed to parse:', mistralResponse);\n  \n  // Fallback enrichment if parsing fails\n  return [{\n    json: {\n      lead_id: lead_id,\n      niche: 'general',\n      score: 50,\n      notes: 'Automatic enrichment failed - requires manual review',\n      message: `Hi ${lead_name || 'there'}, I noticed your profile and thought you might be interested in our services.`,\n      compliant: false,\n      compliance_notes: 'Parse error - manual review required',\n      ai_confidence: 0.1,\n      enrichment_version: '1.0'\n    }\n  }];\n}"
       },
-      "id": "32062de8-944a-4463-b04d-4a343ae2af10",
+      "id": "17af45d8-c2cb-4362-9401-d4a3df2d7456",
       "name": "Parse Enrichment Data",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
@@ -125,7 +120,7 @@
           "mode": "independently"
         }
       },
-      "id": "da3d1bd2-2973-47c7-b991-a1978616921c",
+      "id": "9016d3d4-e507-467f-98b6-0271c93cc306",
       "name": "Save Enriched Data",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -144,7 +139,7 @@
       "parameters": {
         "functionCode": "// Log enrichment completion\nconst enrichedCount = items.length;\nconsole.log(`Successfully enriched ${enrichedCount} leads`);\n\nreturn [{\n  json: {\n    message: 'Lead enrichment completed',\n    enriched_count: enrichedCount,\n    timestamp: new Date().toISOString()\n  }\n}];"
       },
-      "id": "6dd05da7-5101-4d47-a5f1-b08bf251982a",
+      "id": "55a2f59f-ec05-4a68-8c07-d6f4961608dd",
       "name": "Log Enrichment Results",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
@@ -249,10 +244,10 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "1a3f247a-2bbc-4e8e-9e11-9cbf1729286e",
+  "versionId": "1070bc34-29f5-444c-bda1-0a5e7fad9df9",
   "meta": {
     "instanceId": "da6da941c2b65390a6e3f921749640fb52a4b90b0aee4aa6b31fd289f858bb70"
   },
-  "id": "hYbppdMmWy9t7UG5",
+  "id": "AnXOHnezoCzHmYEQ",
   "tags": []
 }

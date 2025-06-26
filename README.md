@@ -1,6 +1,6 @@
 # Affiliate System - AI Automation Engineer Assessment
 
-A complete multi-platform affiliate system that collects leads from social media, enriches them using **FREE Mistral AI** (via OpenRouter), and automates personalized outreach campaigns.
+A complete multi-platform affiliate system that collects leads from social media, enriches them using **FREE Mistral AI** (via OpenRouter API), and automates personalized outreach campaigns.
 
 ## 🏗️ Architecture Overview
 
@@ -9,7 +9,7 @@ This system consists of:
 - **AI Enrichment**: Uses **FREE Mistral AI** via OpenRouter (no costs!) to analyze leads and generate personalized content
 - **Outreach Automation**: Sends personalized emails and tracks engagement
 - **PostgreSQL Database**: Stores leads and enrichment data
-- **n8n Workflows**: Orchestrates all automation processes
+- **n8n Workflows**: Orchestrates all automation processes with integrated Mistral API calls
 
 ## 📋 Prerequisites
 
@@ -42,11 +42,8 @@ cp .env.example .env
 Edit the `.env` file with your credentials:
 
 ```bash
-# Required: FREE OpenRouter API Key (replaces expensive OpenAI!)
+# Required: FREE OpenRouter API Key for Mistral AI
 OPENROUTER_API_KEY=sk-or-v1-your-free-api-key-here
-
-# Optional: OpenAI (only if you prefer paid option)
-# OPENAI_API_KEY=your_openai_api_key_here
 
 # Optional: Email configuration for real outreach
 SMTP_USER=your_email@gmail.com
@@ -103,7 +100,7 @@ The database will be automatically initialized with:
 - Password: `affiliate_pass`
 - Port: `5432`
 
-#### OpenRouter Credential (Free Mistral API)
+#### OpenRouter API Credential (Free Mistral AI)
 - Add new credential: "HTTP Header Auth"
 - Name: `OpenRouter API`
 - Header Name: `Authorization`
@@ -115,12 +112,7 @@ The database will be automatically initialized with:
 3. Go to "Keys" section in your dashboard
 4. Create a new API key
 5. Copy the key and add it to your `.env` file as `OPENROUTER_API_KEY=your_key_here`
-6. The free tier includes access to Mistral 7B Instruct model
-
-#### OpenAI Credential (Optional - if you prefer paid OpenAI)
-- Add new credential: "OpenAI"
-- Name: `OpenAI API`
-- API Key: Your OpenAI API key from `.env`
+6. The free tier includes access to Mistral 7B Instruct model with generous usage limits
 
 #### SMTP Credential (Optional)
 - Add new credential: "SMTP"
@@ -150,10 +142,54 @@ The database will be automatically initialized with:
 
 3. **Import Lead Enrichment Workflow (Mistral - FREE)**:
    - Import `workflows/lead_enrichment.json`
-   - **Note**: Uses free Mistral model via OpenRouter - no costs!
+   - **Note**: Uses free Mistral model via OpenRouter with integrated n8n MCP server - no costs!
+   - **Features**: 
+     - Direct Mistral API integration through n8n HTTP request node
+     - Robust error handling and fallback responses
+     - Optimized prompts for lead analysis and scoring
+     - Compliance checking and personalized message generation
 
 4. **Import Outreach Automation**:
    - Import `workflows/outreach_automation.json`
+
+## 🤖 Mistral AI Integration Details
+
+### n8n MCP Server Configuration
+
+The lead enrichment workflow now includes a dedicated "Call Mistral API" node that:
+
+- **Endpoint**: Uses OpenRouter's Mistral API endpoint (`https://openrouter.ai/api/v1/chat/completions`)
+- **Model**: `mistralai/mistral-7b-instruct:free` (completely free!)
+- **Authentication**: Secure HTTP Header authentication with your OpenRouter API key
+- **Request Format**: Optimized ChatML format with structured prompts
+- **Response Handling**: Robust parsing with multiple fallback strategies
+
+### AI Enrichment Features
+
+The Mistral integration provides:
+
+1. **Lead Analysis**: 
+   - Niche identification based on bio and follower patterns
+   - Quality scoring (0-100) for engagement potential
+   - Compliance assessment for outreach regulations
+
+2. **Personalized Content**:
+   - Custom outreach messages (50-80 words)
+   - Industry-specific talking points
+   - Tone matching based on lead profile
+
+3. **Data Validation**:
+   - Required field checking
+   - Score normalization and bounds checking
+   - Confidence scoring for AI assessments
+
+### Error Handling
+
+The system includes comprehensive error handling:
+- API rate limit management
+- Fallback responses for API failures
+- Structured error logging
+- Graceful degradation with manual review flags
 
 ## 📊 Usage
 
@@ -176,14 +212,16 @@ The database will be automatically initialized with:
    - Click "Execute Workflow"
    - This will scrape real Twitter profiles and extract lead data
 
-### 2. Enrich Leads with AI
+### 2. Enrich Leads with Mistral AI
 
-1. Open the "Lead Enrichment - OpenAI" workflow
+1. Open the "Lead Enrichment" workflow
 2. Click "Execute Workflow"
 3. The workflow will:
-   - Find unenriched leads
-   - Send them to OpenAI for analysis
-   - Store enriched data (niche, score, personalized messages)
+   - Find unenriched leads in the database
+   - Send them to Mistral AI via OpenRouter for analysis
+   - Parse the AI response and validate data
+   - Store enriched data (niche, score, personalized messages, compliance status)
+   - Handle errors gracefully with fallback responses
 
 ### 3. Run Outreach Campaign
 
@@ -191,9 +229,9 @@ The database will be automatically initialized with:
 2. Click "Execute Workflow"
 3. The workflow will:
    - Find high-scoring, compliant leads
-   - Generate personalized emails
+   - Generate personalized emails using AI-generated content
    - Send emails (or simulate for demo)
-   - Mark leads as contacted
+   - Mark leads as contacted and track engagement
 
 ## 🔍 Monitoring and Logs
 
@@ -208,17 +246,31 @@ docker exec -it affiliate_postgres psql -U affiliate_user -d affiliate_system
 # View leads
 SELECT * FROM leads LIMIT 10;
 
-# View enriched leads
-SELECT l.name, el.niche, el.score, el.notes 
+# View enriched leads with AI analysis
+SELECT 
+  l.name, 
+  l.username,
+  l.follower_count,
+  el.niche, 
+  el.score, 
+  el.ai_confidence,
+  el.notes,
+  SUBSTRING(el.message, 1, 50) as message_preview
 FROM leads l 
 JOIN enriched_leads el ON l.id = el.lead_id 
-ORDER BY el.score DESC;
+ORDER BY el.score DESC, el.ai_confidence DESC;
 
-# View outreach status
-SELECT l.name, l.email, el.sent, el.contacted 
+# View high-quality leads ready for outreach
+SELECT 
+  l.name, 
+  l.email, 
+  el.score,
+  el.compliant,
+  el.compliance_notes
 FROM leads l 
 JOIN enriched_leads el ON l.id = el.lead_id 
-WHERE el.score >= 70;
+WHERE el.score >= 70 AND el.compliant = true
+ORDER BY el.score DESC;
 ```
 
 ### View n8n Execution Logs
@@ -226,6 +278,16 @@ WHERE el.score >= 70;
 1. Go to n8n interface
 2. Navigate to Executions
 3. Click on any execution to see detailed logs
+4. Check the "Call Mistral API" node for AI response details
+5. Review "Parse Enrichment Data" for processing results
+
+### Mistral API Monitoring
+
+Monitor your OpenRouter usage:
+1. Visit your OpenRouter dashboard
+2. Check API usage and remaining free credits
+3. Review request/response logs for debugging
+4. Monitor rate limits and performance metrics
 
 ### Docker Logs
 
@@ -236,6 +298,9 @@ docker-compose logs
 # View specific service logs
 docker-compose logs n8n
 docker-compose logs postgres
+
+# Follow logs in real-time
+docker-compose logs -f n8n
 ```
 
 ## 📈 Workflow Automation
@@ -244,7 +309,7 @@ docker-compose logs postgres
 
 The workflows are configured with the following schedules:
 
-- **Lead Enrichment**: Every 30 minutes
+- **Lead Enrichment (Mistral AI)**: Every 30 minutes
 - **Outreach Automation**: Daily at 9 AM (Monday-Friday)
 
 To enable automatic execution:
@@ -265,22 +330,48 @@ All workflows can be triggered manually for testing:
 To add new social media platforms:
 1. Edit `sql/01_leads.sql` to add new source types
 2. Update the lead generation workflow
-3. Modify the OpenAI prompt in the enrichment workflow
+3. Modify the Mistral prompt in the enrichment workflow
 
 ### Adjusting AI Prompts
 
-Edit the OpenAI prompt in the "Prepare OpenAI Prompt" function node:
+Edit the Mistral prompt in the "Prepare Mistral Prompt" function node:
 - Located in `workflows/lead_enrichment.json`
 - Modify the prompt string to change analysis criteria
 - Adjust the JSON response format as needed
+- Fine-tune temperature and other model parameters in the "Call Mistral API" node
+
+Example prompt customization:
+```javascript
+const prompt = `Analyze this ${lead.source} lead for ${specific_industry}:
+
+Lead Information:
+- Name: ${lead.name}
+- Bio: ${lead.bio}
+- Followers: ${lead.follower_count}
+
+Focus on:
+- Industry relevance for ${your_business_type}
+- Engagement potential
+- Decision-maker likelihood
+
+Respond with JSON only...`;
+```
+
+### Mistral Model Configuration
+
+The "Call Mistral API" node can be customized:
+- **Model**: Switch between different Mistral variants (7B, 8x7B, etc.)
+- **Temperature**: Adjust creativity (0.1-1.0, default: 0.3)
+- **Max Tokens**: Control response length (default: 1000)
+- **Top-p**: Fine-tune response diversity (default: 1.0)
 
 ### Email Templates
 
 Customize outreach emails in the "Prepare Email Content" function node:
 - Located in `workflows/outreach_automation.json`
 - Modify subject line templates
-- Update email body content
-- Add new personalization variables
+- Update email body content using Mistral-generated personalized messages
+- Add new personalization variables from AI analysis
 
 ## 🔒 Security and Compliance
 
@@ -289,14 +380,16 @@ Customize outreach emails in the "Prepare Email Content" function node:
 - All sensitive data is stored in PostgreSQL with proper indexing
 - API keys are managed through environment variables
 - n8n credentials are encrypted and secured
+- Mistral API calls use HTTPS with proper authentication
 
 ### Email Compliance
 
 The system includes:
 - Unsubscribe links in all emails
-- Compliance checking before sending
+- AI-powered compliance checking before sending
 - Rate limiting and batch processing
 - GDPR-friendly data handling
+- Automated compliance assessment in Mistral enrichment
 
 ### Production Considerations
 
@@ -306,8 +399,10 @@ Before deploying to production:
 2. **Enable SSL/TLS** for n8n and database connections
 3. **Set up proper backup procedures** for PostgreSQL
 4. **Configure email authentication** (SPF, DKIM, DMARC)
-5. **Implement monitoring and alerting**
-6. **Review and update compliance settings**
+5. **Implement monitoring and alerting** for Mistral API usage
+6. **Review and update compliance settings** in AI prompts
+7. **Set up rate limiting** for OpenRouter API calls
+8. **Monitor AI confidence scores** and manual review flags
 
 ## 🧪 Testing
 
@@ -319,23 +414,32 @@ Before deploying to production:
    docker exec -it affiliate_postgres psql -U affiliate_user -d affiliate_system -c "SELECT COUNT(*) FROM leads;"
    ```
 
-2. **Test AI Enrichment**:
+2. **Test Mistral AI Enrichment**:
    ```bash
    # Check enriched leads
    docker exec -it affiliate_postgres psql -U affiliate_user -d affiliate_system -c "SELECT COUNT(*) FROM enriched_leads;"
+   
+   # Check AI confidence and scores
+   docker exec -it affiliate_postgres psql -U affiliate_user -d affiliate_system -c "SELECT AVG(score), AVG(ai_confidence), COUNT(*) FROM enriched_leads WHERE ai_confidence > 0.5;"
    ```
 
-3. **Test Outreach**:
+3. **Test API Integration**:
+   - Check n8n execution logs for "Call Mistral API" node
+   - Verify OpenRouter API usage in dashboard
+   - Test different lead profiles for consistent AI responses
+
+4. **Test Outreach**:
    - Check n8n execution logs
    - Verify email delivery (if SMTP configured)
-   - Check database updates
+   - Check database updates for contacted leads
 
 ### Automated Testing
 
-The workflows include error handling and logging:
-- Failed enrichments fall back to default values
+The workflows include comprehensive error handling and logging:
+- Failed Mistral API calls fall back to default enrichment values
 - Email sending errors are logged and tracked
 - Database operations include transaction safety
+- AI response parsing includes multiple fallback strategies
 
 ## 🔧 Troubleshooting
 
@@ -351,12 +455,25 @@ The workflows include error handling and logging:
    - Verify credentials in n8n match `.env` file
    - Check network connectivity between containers
 
-3. **OpenAI API Errors**:
-   - Verify API key is correct and has credits
-   - Check rate limits and usage quotas
-   - Review OpenAI response in n8n execution logs
+3. **Mistral API Errors**:
+   - Verify OpenRouter API key is correct and active
+   - Check rate limits and usage quotas in OpenRouter dashboard
+   - Review Mistral response in n8n execution logs
+   - Test API key with curl:
+     ```bash
+     curl -X POST "https://openrouter.ai/api/v1/chat/completions" \
+       -H "Authorization: Bearer YOUR_API_KEY" \
+       -H "Content-Type: application/json" \
+       -d '{"model": "mistralai/mistral-7b-instruct:free", "messages": [{"role": "user", "content": "Hello"}]}'
+     ```
 
-4. **Email Sending Issues**:
+4. **AI Response Parsing Issues**:
+   - Check "Parse Enrichment Data" node logs for JSON parsing errors
+   - Verify Mistral is returning properly formatted JSON
+   - Review fallback handling in the parsing logic
+   - Adjust prompt if responses are inconsistent
+
+5. **Email Sending Issues**:
    - Verify SMTP credentials and settings
    - Check if Gmail App Passwords are enabled
    - Review email service provider restrictions
@@ -376,12 +493,50 @@ docker-compose down -v
 docker-compose up -d
 ```
 
+### Mistral-Specific Debugging
+
+```bash
+# Check Mistral API node execution details
+docker-compose logs n8n | grep -i mistral
+
+# Monitor OpenRouter API usage
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  "https://openrouter.ai/api/v1/generation" | jq
+
+# Test individual workflow nodes
+# Go to n8n interface > Workflow > Click on "Call Mistral API" node > "Execute Node"
+```
+
 ## 📚 Additional Resources
 
 - [n8n Documentation](https://docs.n8n.io/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [OpenAI API Documentation](https://platform.openai.com/docs/)
+- [OpenRouter API Documentation](https://openrouter.ai/docs)
+- [Mistral AI Documentation](https://docs.mistral.ai/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
+
+## 🚀 Advanced Features
+
+### Multi-Model AI Support
+
+The system can be extended to use multiple AI models:
+- Modify the "Call Mistral API" node to rotate between models
+- Add model-specific prompt optimization
+- Implement consensus scoring across multiple AI responses
+
+### Real-time Lead Scoring
+
+Implement webhook-based real-time enrichment:
+- Set up n8n webhook triggers
+- Process leads immediately upon addition
+- Integrate with CRM systems for instant scoring
+
+### A/B Testing for AI Prompts
+
+Test different prompt strategies:
+- Create multiple enrichment workflows with different prompts
+- Track conversion rates and AI confidence scores
+- Optimize prompts based on outreach success metrics
 
 ## 🤝 Support
 
@@ -390,7 +545,9 @@ For technical support or questions:
 2. Review Docker and n8n logs
 3. Verify all credentials and configurations
 4. Test individual workflow components
+5. Check OpenRouter API status and usage limits
+6. Review Mistral API documentation for latest updates
 
 ## 📄 License
 
-This project is created for assessment purposes. Please review and comply with all applicable terms of service for external APIs and services used. 
+This project is created for assessment purposes. Please review and comply with all applicable terms of service for external APIs and services used, including OpenRouter and Mistral AI usage policies. 
